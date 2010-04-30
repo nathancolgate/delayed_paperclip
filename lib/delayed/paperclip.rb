@@ -27,6 +27,14 @@ module Delayed
             Resque.enqueue(ResquePaperclipJob, self.class.name, read_attribute(:id), name.to_sym)
           end
         end
+        
+        define_method "enqueue_job_for_#{name}!" do
+          if delayed_job?
+            Delayed::Job.enqueue DelayedPaperclipJob.new(self.class.name, read_attribute(:id), name.to_sym)
+          elsif resque?
+            Resque.enqueue(ResquePaperclipJob, self.class.name, read_attribute(:id), name.to_sym)
+          end
+        end
 
         define_method "#{name}_processed!" do
           return unless column_exists?(:"#{name}_processing")
@@ -47,7 +55,12 @@ module Delayed
         self.send("before_#{name}_post_process", :"halt_processing_for_#{name}")
 
         before_save :"#{name}_processing!"
-        after_save  :"enqueue_job_for_#{name}"
+        # I want to call this on my own
+        # in my case: I am transferring an image
+        # directly to S3 (not through the server)
+        # and I need to transfer the image from a temp file
+        # to the location paperclip expects before it can be processed.
+        # after_save  :"enqueue_job_for_#{name}"
       end
     end
 
